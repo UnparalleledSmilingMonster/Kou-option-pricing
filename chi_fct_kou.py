@@ -184,6 +184,8 @@ def european_call_option(S0, r, sigma, lambda_, p, eta_1, eta_2, K, T, m):
     eta_2_tilde = eta_2 +1
     lambda_tilde = lambda_*(zeta + 1)
     
+    binomial(m) #we can compute the binomial coefficients as a global variable beforehand
+    
     return S0 * chi(mu_tilde, sigma, lambda_tilde, p_tilde, eta_1_tilde, eta_2_tilde, a, T, m)  \
         -  K * np.exp(-r*T) * chi(mu, sigma, lambda_, p, eta_1, eta_2, a, T, m)
         
@@ -202,10 +204,10 @@ if __name__ == '__main__':
     K = 98
     T = 0.5
     S0 = 100
-    
-
     m = 20 #number of points before truncation of the infinite sums 
-    binomial(m) #we can compute the binomial coefficients as a global variable beforehand
+    
+    
+    #binomial(m) #we can compute the binomial coefficients as a global variable beforehand
     
     print("Price of the european call option:", european_call_option(S0, r, sigma, lambda_, p, eta_1, eta_2, K, T, m))    
     
