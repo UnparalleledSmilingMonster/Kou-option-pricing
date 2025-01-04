@@ -505,9 +505,4 @@ if __name__ == '__main__':
     
     
 
-
-
-
-#The lord opposes the proud and here I am to humble you
-#Heavenly father bear witness to the strength of your creation
    
