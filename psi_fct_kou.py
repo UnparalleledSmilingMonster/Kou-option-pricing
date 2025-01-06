@@ -1,11 +1,10 @@
 import numpy as np
 from scipy.special import factorial, binom, erf, ndtr  # ndtr is the CDF for the normal distribution
 
-
 from tqdm import tqdm
 import mpmath as mp
 
-
+from chi_fct_kou import european_call_option
 
 #Math variables
 pi = mp.pi
@@ -184,7 +183,7 @@ def P_and_Q(eta_1, eta_2, p, m): #ok
 
 
 def P_tilde_and_Q_tilde(eta_1, eta_2, p, m): #ok fixed
-    q = 1-p
+    q = mp.mpf(1-p)
     #Indexes letters used fit with the paper notations
     global P_tilde_arr, Q_tilde_arr
     P_tilde_arr = mp.matrix(m+1)
@@ -193,12 +192,12 @@ def P_tilde_and_Q_tilde(eta_1, eta_2, p, m): #ok fixed
         for i in range(1,n+1):
             if i==1 :
                 for j in range(1, n+1):
-                    P_tilde_arr[n,1]+= Q_arr[n,j]*arr2[j]
-                    Q_tilde_arr[n,1] += binomial_arr[j,n] * q_pow[j] * p_pow[n- j] * binomial_arr[j-i,n-i] * arr2[j-i] * arr1[n-j+1]
+                    P_tilde_arr[n,1] += Q_arr[n,j]*arr2[j]
+                    Q_tilde_arr[n,1] += binomial_arr[j,n] * q_pow[j] * p_pow[n-j] * binomial_arr[j-i,n-i] * arr2[j-i] * arr1[n-j+1]
             else:
                 P_tilde_arr[n,i] = P_arr[n,i-1]
                 for j in range(i,n+1):
-                    Q_tilde_arr[n,i] += binomial_arr[j,n] * q_pow[j] * p_pow[n- j] * binomial_arr[j-i,n-i] * arr2[j-i] * arr1[n-j+1]
+                    Q_tilde_arr[n,i] += binomial_arr[j,n] * q_pow[j] * p_pow[n-j] * binomial_arr[j-i,n-i] * arr2[j-i] * arr1[n-j+1]
     return P_tilde_arr, Q_tilde_arr
     
     
@@ -215,8 +214,8 @@ def lap_psi_tilde(alpha, mu, sigma, lambda_, p, eta_1, eta_2, a, b, T, m, debug 
     except:
         print("Failed to find root beta_1, switching solver")
         beta_1 = mp.findroot(lambda x : G(x) - alpha, (1e-30,eta_1-1e-30), tol=mp.mpf(1e-50), solver = 'anderson')
-        print("beta_1:",beta_1)
-        print("error_1:", G(beta_1) - alpha)
+        #print("beta_1:",beta_1)
+        #print("error_1:", G(beta_1) - alpha)
         
     try:
         beta_2 =  mp.findroot(lambda x : G(x) - alpha, (eta_1+1e-5, 1e4), tol=mp.mpf(1e-50), solver = 'ridder')
@@ -225,10 +224,10 @@ def lap_psi_tilde(alpha, mu, sigma, lambda_, p, eta_1, eta_2, a, b, T, m, debug 
     except:
         print("Failed to find root beta_2, switching solver")
         beta_2 =  mp.findroot(lambda x : G(x) - alpha, (eta_1+1e-5, 150), tol=mp.mpf(1e-50), solver = 'anderson')
-        print("beta_2:",beta_2)
-        print("error_2:", G(beta_2) - alpha)
+        #print("beta_2:",beta_2)
+        #print("error_2:", G(beta_2) - alpha)
 
-    
+    #print([beta_1, beta_2]) #roots look good
     if debug:
         print("alpha:", alpha)
         print("beta_1:",beta_1)
@@ -281,7 +280,7 @@ def lap_psi_tilde(alpha, mu, sigma, lambda_, p, eta_1, eta_2, a, b, T, m, debug 
     term1 = 0
     for n in range(0,m+1):
         term1 += exp_lambda_DL[n] * H0_arr[n]
-    term1 = (A+B) * term1
+    term1 *= A+B 
     
     #term 2:checked to be stable through variations of m
     #ok
@@ -372,6 +371,7 @@ def gaver_stehfest(f_lap, t, w, richardson=False):
 #########################################################################################
 
 def european_barrier_uic_option(S0, r, sigma, lambda_, p, eta_1, eta_2, K, H, T, m, w, richardson= True):
+    #Up-and-In Call barrier option
     
     #w : number of points for the inverse Laplace transform
     q = 1-p
@@ -386,6 +386,9 @@ def european_barrier_uic_option(S0, r, sigma, lambda_, p, eta_1, eta_2, K, H, T,
     eta_2_tilde = eta_2 +1
     lambda_tilde = lambda_*(zeta + 1)
     
+    binomial(2*max(w+3,m+3)) #account for the burning out
+    factorial(3*max(w+3,m+3))
+   
     if richardson: 
         factorial_arr = mp.matrix([mp.factorial(k) for k in range(w+1)])
         global omega_arr
@@ -408,8 +411,15 @@ def european_barrier_uic_option(S0, r, sigma, lambda_, p, eta_1, eta_2, K, H, T,
     laplace_transform_t2= lambda alpha : lap_psi_tilde(alpha, mu, sigma, lambda_, p, eta_1, eta_2, a, b, T, m, debug = False)
     t2 =  gaver_stehfest(laplace_transform_t2, b, w, richardson) 
     
-    return   t1 - K*mp.exp(-r*T)*t2
+    return float(t1 - K*mp.exp(-r*T)*t2)
+
+
+def european_barrier_uoc_option(S0, r, sigma, lambda_, p, eta_1, eta_2, K, H, T, m, w, richardson= True):
+    #Up-and-Out Call barrier option
     
+    return european_call_option(float(S0), float(r), float(sigma), float(lambda_), float(p), float(eta_1), float(eta_2), float(K), float(T), m) -european_barrier_uic_option(S0, r, sigma, lambda_, p, eta_1, eta_2, K, H, T, m, w, richardson)
+    
+     
 
 def toy_example_paper():
     b = mp.mpf(0.3)
@@ -422,7 +432,7 @@ def toy_example_paper():
     eta_2 = mp.mpf(1/0.03)
     llambda = mp.mpf(3.0)
     m = 15 #number of points before truncation of the infinite sums 
-    w = 20 #number of points for laplace inverse trasnform 
+    w = 10 #number of points for laplace inverse trasnform 
     
     binomial(2*max(w+3,m+3)) #account for the burning out
     factorial(3*max(w+3,m+3))
@@ -458,7 +468,7 @@ def testing_H(a,b,c,n,i):
     #Hi = Hi_rec for a!=0 (whether a <0 or a >0) if i!= -1 (now that's it's fixed)
     #Note that for high values of i and n, we stumble upon small differences, that are likely to be caused by the nested in quadrature computation
     
-    binomial(40) #account for the burning out
+    binomial(40)
     factorial(40)
     
     if i ==-1: hh_i = lambda x : mp.exp(-mp.power(x,2)/2)
@@ -500,7 +510,7 @@ if __name__ == '__main__':
     print("Price of the UIC barrier option:", european_barrier_uic_option( S0, r, sigma, lambda_, p, eta_1, eta_2, K, H, T, m, w)) 
     """
     toy_example_paper()
-    #testing_H(mp.mpf(-3),mp.mpf(1),mp.mpf(5),2,3)
+    #testing_H(mp.mpf(3),mp.mpf(1),mp.mpf(5),2,3)
 
     
     
